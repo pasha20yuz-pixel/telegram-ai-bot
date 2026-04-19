@@ -1,11 +1,14 @@
 import asyncio
 import logging
 import os
-
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 from openai import OpenAI
+
+# ЗАГРУЖАЕМ ПЕРЕМЕННЫЕ ИЗ ФАЙЛА .env (ЭТОЙ СТРОКИ НЕ ХВАТАЕТ!)
+load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +38,7 @@ async def get_llm_response(prompt, user_id):
     """
     Отправляет запрос в LLM и возвращает ответ.
     """
-    model = "deepseek/deepseek-r1-0528-qwen3-8b:free"  # Выберите подходящую модель
+    model="meta-llama/llama-3-70b-instruct"  # Выберите подходящую модель
     if user_id not in user_contexts:
         user_contexts[user_id] = []
 
