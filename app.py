@@ -4,86 +4,132 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from openai import OpenAI
-from flask import Flask
-import sys
+from collections import defaultdict
+from datetime import datetime
 
-# Настройка логирования
+# Настройка
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Получаем токены
+# Токены
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
 
 if not TELEGRAM_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN not found!")
-    sys.exit(1)
+    raise ValueError("Нет токена Telegram")
 if not OPENROUTER_KEY:
-    logger.error("OPENROUTER_API_KEY not found!")
-    sys.exit(1)
+    raise ValueError("Нет ключа OpenRouter")
 
-logger.info("=== ЗАПУСК БОТА ===")
-logger.info(f"Telegram token: {TELEGRAM_TOKEN[:10]}...")
-logger.info(f"OpenRouter key: {OPENROUTER_KEY[:10]}...")
+# Память для каждого пользователя (храним последние 20 сообщений)
+user_memory = defaultdict(list)
+MAX_MEMORY = 20
 
-# Инициализация бота
+# Инициализация
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
-# Клиент OpenRouter
 client = OpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=OPENROUTER_KEY,
 )
 
-# Flask приложение (только для health check)
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
-def home():
-    return "Bot is running!"
-
-@flask_app.route('/health')
-def health():
-    return "OK"
+# === КОМАНДЫ ===
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    logger.info(f"Start from {message.from_user.id}")
-    await message.answer("Привет! Я ИИ-помощник. Задавай любые вопросы на русском!")
+    user_id = message.from_user.id
+    user_memory[user_id] = []  # Очищаем память
+    await message.answer(
+        "🤖 Привет! Я ИИ-помощник с памятью!\n\n"
+        "📝 Я запоминаю наши разговоры\n"
+        "🧠 Доступные команды:\n"
+        "/start - начать заново (очистить память)\n"
+        "/clear - очистить историю диалога\n"
+        "/help - показать команды\n"
+        "/weather - погода (в разработке)\n"
+        "/remind - напоминание (в разработке)\n"
+        "/translate - перевод (в разработке)"
+    )
+
+@dp.message(Command("help"))
+async def help_command(message: types.Message):
+    await message.answer(
+        "📚 **Доступные команды:**\n\n"
+        "/start - начать диалог заново\n"
+        "/clear - очистить историю (забыть всё)\n"
+        "/help - показать эту справку\n\n"
+        "🎯 **Функции в разработке:**\n"
+        "/weather <город> - показать погоду\n"
+        "/remind <время> <текст> - создать напоминание\n"
+        "/translate <текст> - перевести на русский"
+    )
+
+@dp.message(Command("clear"))
+async def clear_memory(message: types.Message):
+    user_id = message.from_user.id
+    user_memory[user_id] = []
+    await message.answer("🗑️ История диалога очищена! Я всё забыл.")
+
+# === ОСНОВНОЙ ОБРАБОТЧИК С ПАМЯТЬЮ ===
 
 @dp.message()
 async def ask_ai(message: types.Message):
-    logger.info(f"Message from {message.from_user.id}: {message.text[:50]}")
+    user_id = message.from_user.id
+    
+    # Добавляем сообщение пользователя в память
+    user_memory[user_id].append({
+        "role": "user",
+        "content": message.text,
+        "time": datetime.now().strftime("%H:%M:%S")
+    })
+    
+    # Ограничиваем размер памяти
+    if len(user_memory[user_id]) > MAX_MEMORY:
+        user_memory[user_id] = user_memory[user_id][-MAX_MEMORY:]
+    
     try:
         await bot.send_chat_action(message.chat.id, "typing")
+        
+        # Формируем запрос с историей
+        messages_for_api = [
+            {"role": "system", "content": "Ты — русскоязычный ИИ-помощник. Отвечай всегда на русском языке, вежливо и полезно. Помни контекст нашего разговора."}
+        ]
+        
+        # Добавляем историю (без времени)
+        for msg in user_memory[user_id]:
+            messages_for_api.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+        
         completion = client.chat.completions.create(
             model="meta-llama/llama-3-70b-instruct",
-            messages=[
-                {"role": "system", "content": "Ты — русскоязычный ИИ-помощник. Отвечай всегда на русском языке."},
-                {"role": "user", "content": message.text}
-            ],
+            messages=messages_for_api,
             max_tokens=1000,
+            temperature=0.7
         )
+        
         answer = completion.choices[0].message.content
+        
+        # Сохраняем ответ бота в память
+        user_memory[user_id].append({
+            "role": "assistant",
+            "content": answer,
+            "time": datetime.now().strftime("%H:%M:%S")
+        })
+        
         await message.answer(answer)
-        logger.info(f"Response sent, length: {len(answer)}")
+        logger.info(f"User {user_id}: память содержит {len(user_memory[user_id])} сообщений")
+        
     except Exception as e:
-        logger.error(f"Error: {e}")
-        await message.answer("Извините, произошла ошибка. Попробуйте позже.")
+        logger.error(f"Ошибка: {e}")
+        await message.answer("⚠️ Извините, произошла ошибка. Попробуйте позже.")
 
-# Запускаем Flask в отдельном потоке, а бота в основном
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host="0.0.0.0", port=port, use_reloader=False)
+# === ЗАПУСК ===
 
 async def main():
-    logger.info("Запуск aiogram бота...")
-    # Запускаем Flask в отдельном потоке
-    import threading
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    # Запускаем бота в основном потоке asyncio
+    logger.info("🤖 Бот с памятью запущен!")
+    logger.info("Доступные команды: /start, /clear, /help")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
