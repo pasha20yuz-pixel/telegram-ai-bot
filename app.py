@@ -59,7 +59,6 @@ available_models = {
     "qwen": "qwen/qwen3-coder-480b-a35b-instruct"
 }
 
-# Описания моделей для команды /model
 model_descriptions = {
     "auto": "🤖 **Автоматический выбор** — OpenRouter сам выбирает лучшую бесплатную модель под ваш запрос",
     "nemotron": "🔬 **NVIDIA Nemotron 3 Super** — 120B параметров, 1M контекст. Отличная для сложных задач",
@@ -82,7 +81,6 @@ client = OpenAI(
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
 async def get_weather(city: str):
-    """Получает погоду для указанного города"""
     if not OPENWEATHER_KEY:
         return "❌ API ключ для погоды не настроен. Добавьте OPENWEATHER_API_KEY в переменные окружения Render."
     
@@ -111,7 +109,6 @@ async def get_weather(city: str):
                 return f"❌ Ошибка получения погоды. Код ошибки: {response.status}"
 
 async def translate_text(text: str, target_lang: str = "ru"):
-    """Переводит текст на русский (использует LibreTranslate бесплатно)"""
     url = "https://libretranslate.com/translate"
     payload = {
         "q": text,
@@ -127,6 +124,29 @@ async def translate_text(text: str, target_lang: str = "ru"):
                 return data['translatedText']
             else:
                 return f"❌ Ошибка перевода. Попробуйте позже."
+
+# === ПЛАНИРОВЩИК НАПОМИНАНИЙ (ФОНОВЫЙ) ===
+async def reminder_scheduler():
+    """Фоновая задача, которая каждые 30 секунд проверяет и отправляет напоминания."""
+    while True:
+        now = datetime.now()
+        # Проходим по всем пользователям
+        for user_id, user_reminders in reminders.items():
+            # Используем копию списка для безопасного удаления
+            for r in user_reminders[:]:
+                if r["time"] <= now:
+                    try:
+                        await bot.send_message(
+                            user_id,
+                            f"⏰ **Напоминание:** {r['text']}\n(создано в {r['created'].strftime('%H:%M:%S')})",
+                            parse_mode="Markdown"
+                        )
+                        logger.info(f"Напоминание отправлено пользователю {user_id}: {r['text']}")
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить напоминание {user_id}: {e}")
+                    # Удаляем отправленное напоминание
+                    user_reminders.remove(r)
+        await asyncio.sleep(30)  # проверяем каждые 30 секунд
 
 # === КОМАНДЫ ===
 
@@ -144,7 +164,7 @@ async def start(message: types.Message):
         "/weather <город> - узнать погоду\n\n"
         "🌍 **Перевод:**\n"
         "/translate <текст> - перевести на русский\n\n"
-        "⏰ **Напоминания:**\n"
+        "⏰ **Напоминания (теперь с точным временем!):**\n"
         "/remind <время> <текст> - создать напоминание\n"
         "/reminders - показать мои напоминания\n\n"
         "🧠 **Настройки ИИ (все модели бесплатны):**\n"
@@ -169,10 +189,13 @@ async def help_command(message: types.Message):
         "**Перевод:**\n"
         "/translate <текст> - перевод на русский\n"
         "Пример: `/translate Hello, how are you?`\n\n"
-        "**Напоминания:**\n"
+        "**Напоминания (точное время):**\n"
         "/remind <время> <текст> - создать напоминание\n"
         "/reminders - список напоминаний\n"
-        "Пример: `/remind 14:30 Встреча с командой`\n\n"
+        "Примеры:\n"
+        "  `/remind 15:30 Позвонить маме`\n"
+        "  `/remind 30м Полить цветы`\n"
+        "  `/remind 2ч Закончить отчёт`\n\n"
         "**ИИ модели (все БЕСПЛАТНЫЕ):**\n"
         "/model - текущая модель\n"
         "/model auto - автоматический выбор лучшей модели\n"
@@ -239,7 +262,7 @@ async def remind_command(message: types.Message):
             "`/remind 15:30 Позвонить маме`\n"
             "`/remind 30м Полить цветы`\n\n"
             "Поддерживаемые форматы времени:\n"
-            "- ЧЧ:ММ (время на сегодня)\n"
+            "- ЧЧ:ММ (время на сегодня/завтра)\n"
             "- 30м (через 30 минут)\n"
             "- 2ч (через 2 часа)",
             parse_mode="Markdown"
@@ -278,7 +301,9 @@ async def remind_command(message: types.Message):
     await message.answer(
         f"✅ Напоминание создано!\n\n"
         f"⏰ Время: {remind_time.strftime('%d.%m.%Y %H:%M')}\n"
-        f"📝 Текст: {reminder_text}"
+        f"📝 Текст: {reminder_text}\n\n"
+        f"🔔 Я пришлю уведомление точно в это время (даже если вы не пишете боту).",
+        parse_mode="Markdown"
     )
 
 @dp.message(Command("reminders"))
@@ -309,7 +334,6 @@ async def model_command(message: types.Message):
     args = message.text.split(maxsplit=1)
     
     if len(args) < 2:
-        # Показываем текущую модель
         current_name = [name for name, model_id in available_models.items() if model_id == current_model]
         current_name = current_name[0] if current_name else "unknown"
         
@@ -336,8 +360,6 @@ async def model_command(message: types.Message):
         return
     
     current_model = available_models[model_name]
-    
-    # Отправляем описание модели
     desc = model_descriptions.get(model_name, "🔧 Бесплатная модель")
     
     await message.answer(
@@ -348,13 +370,12 @@ async def model_command(message: types.Message):
         parse_mode="Markdown"
     )
 
-# === ОСНОВНОЙ ОБРАБОТЧИК ===
+# === ОСНОВНОЙ ОБРАБОТЧИК (без проверки напоминаний, они в фоне) ===
 
 @dp.message()
 async def ask_ai(message: types.Message):
     user_id = message.from_user.id
     
-    # Добавляем сообщение пользователя в память
     user_memory[user_id].append({
         "role": "user",
         "content": message.text
@@ -362,14 +383,6 @@ async def ask_ai(message: types.Message):
     
     if len(user_memory[user_id]) > MAX_MEMORY:
         user_memory[user_id] = user_memory[user_id][-MAX_MEMORY:]
-    
-    # Проверяем напоминания
-    if user_id in reminders:
-        now = datetime.now()
-        due_reminders = [r for r in reminders[user_id] if r["time"] <= now]
-        for r in due_reminders:
-            await message.answer(f"⏰ **Напоминание:** {r['text']}\n(создано в {r['created'].strftime('%H:%M')})")
-            reminders[user_id].remove(r)
     
     try:
         await bot.send_chat_action(message.chat.id, "typing")
@@ -409,7 +422,11 @@ async def ask_ai(message: types.Message):
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("🤖 Бот с бесплатными моделями запущен!")
+    
+    # Запускаем фоновый планировщик напоминаний
+    asyncio.create_task(reminder_scheduler())
+    
+    logger.info("🤖 Бот с бесплатными моделями и планировщиком напоминаний запущен!")
     logger.info(f"Текущая модель: {current_model}")
     logger.info("Доступные команды: /start, /clear, /help, /weather, /translate, /remind, /reminders, /model")
     await dp.start_polling(bot)
