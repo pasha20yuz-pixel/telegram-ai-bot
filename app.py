@@ -44,16 +44,30 @@ if not OPENROUTER_KEY:
 user_memory = defaultdict(list)
 MAX_MEMORY = 20
 
-# === НАПОМИНАНИЯ (временное хранилище) ===
+# === НАПОМИНАНИЯ ===
 reminders = defaultdict(list)
 
-# === НАСТРОЙКИ МОДЕЛИ (только бесплатные) ===
-current_model = "meta-llama/llama-3-70b-instruct"
+# === НАСТРОЙКИ МОДЕЛИ (только БЕСПЛАТНЫЕ) ===
+current_model = "openrouter/auto"
 available_models = {
-    "llama3": "meta-llama/llama-3-70b-instruct",
-    "gemini": "google/gemini-1.5-flash",
-    "phi": "microsoft/phi-3-mini-4k-instruct",
-    "mistral": "mistralai/mistral-7b-instruct"
+    "auto": "openrouter/auto",
+    "nemotron": "nvidia/nemotron-3-super",
+    "trinity": "arcee-ai/trinity-large-preview",
+    "glm": "z-ai/glm-4.5-air",
+    "gpt-oss": "openai/gpt-oss-120b",
+    "gemma": "google/gemma-4-31b-instruct",
+    "qwen": "qwen/qwen3-coder-480b-a35b-instruct"
+}
+
+# Описания моделей для команды /model
+model_descriptions = {
+    "auto": "🤖 **Автоматический выбор** — OpenRouter сам выбирает лучшую бесплатную модель под ваш запрос",
+    "nemotron": "🔬 **NVIDIA Nemotron 3 Super** — 120B параметров, 1M контекст. Отличная для сложных задач",
+    "trinity": "✨ **Arcee Trinity** — 400B параметров. Хороша для творческих задач",
+    "glm": "📊 **GLM-4.5-Air** — MoE архитектура. Сбалансированная модель",
+    "gpt-oss": "🪶 **GPT-OSS 120B** — 117B параметров. Открытая альтернатива GPT",
+    "gemma": "🟢 **Google Gemma 4** — 31B параметров, 256K контекст. Отлична для русского языка",
+    "qwen": "🐉 **Qwen3-Coder-480B** — 480B параметров. Лучша для программирования"
 }
 
 # === ИНИЦИАЛИЗАЦИЯ ===
@@ -121,7 +135,7 @@ async def start(message: types.Message):
     user_id = message.from_user.id
     user_memory[user_id] = []
     await message.answer(
-        "🤖 **Привет! Я ИИ-помощник с расширенными возможностями!**\n\n"
+        "🤖 **Привет! Я ИИ-помощник на полностью бесплатных моделях!**\n\n"
         "📝 **Основные команды:**\n"
         "/start - начать заново (очистить память)\n"
         "/clear - очистить историю диалога\n"
@@ -133,14 +147,11 @@ async def start(message: types.Message):
         "⏰ **Напоминания:**\n"
         "/remind <время> <текст> - создать напоминание\n"
         "/reminders - показать мои напоминания\n\n"
-        "🧠 **Настройки ИИ (бесплатные модели):**\n"
+        "🧠 **Настройки ИИ (все модели бесплатны):**\n"
         "/model - показать текущую модель\n"
         "/model <название> - сменить модель\n\n"
-        "💡 **Примеры:**\n"
-        "`/weather Москва`\n"
-        "`/translate Hello world`\n"
-        "`/remind 15:30 Позвонить маме`\n"
-        "`/model llama3`",
+        "💡 **Рекомендация:** модель `auto` сама выбирает лучшую бесплатную модель\n\n"
+        "⭐ **Попробуйте:** `/model gemma` для русского языка",
         parse_mode="Markdown"
     )
 
@@ -162,12 +173,15 @@ async def help_command(message: types.Message):
         "/remind <время> <текст> - создать напоминание\n"
         "/reminders - список напоминаний\n"
         "Пример: `/remind 14:30 Встреча с командой`\n\n"
-        "**ИИ модели (бесплатные):**\n"
+        "**ИИ модели (все БЕСПЛАТНЫЕ):**\n"
         "/model - текущая модель\n"
-        "/model llama3 - Llama 3 (70B, рекомендуемая)\n"
-        "/model gemini - Google Gemini 1.5 Flash\n"
-        "/model phi - Microsoft Phi-3 Mini\n"
-        "/model mistral - Mistral 7B",
+        "/model auto - автоматический выбор лучшей модели\n"
+        "/model nemotron - NVIDIA Nemotron 3 Super\n"
+        "/model trinity - Arcee Trinity\n"
+        "/model glm - GLM-4.5-Air\n"
+        "/model gpt-oss - GPT-OSS 120B\n"
+        "/model gemma - Google Gemma 4 (рекомендуется для русского)\n"
+        "/model qwen - Qwen3-Coder (для программирования)",
         parse_mode="Markdown"
     )
 
@@ -299,12 +313,13 @@ async def model_command(message: types.Message):
         current_name = [name for name, model_id in available_models.items() if model_id == current_model]
         current_name = current_name[0] if current_name else "unknown"
         
-        models_list = "\n".join([f"• {name}" for name in available_models.keys()])
+        models_list = "\n".join([f"• **{name}**" for name in available_models.keys()])
         await message.answer(
             f"🧠 **Текущая модель:** `{current_name}`\n\n"
             f"📚 **Доступные бесплатные модели:**\n{models_list}\n\n"
-            f"💡 **Сменить модель:** `/model llama3`\n\n"
-            f"⭐ **Рекомендация:** llama3 (самая умная и быстрая)",
+            f"💡 **Сменить модель:** `/model gemma`\n\n"
+            f"⭐ **Рекомендация:** `auto` — автоматический выбор лучшей модели\n"
+            f"🇷🇺 **Для русского языка:** `gemma`",
             parse_mode="Markdown"
         )
         return
@@ -315,16 +330,21 @@ async def model_command(message: types.Message):
         await message.answer(
             f"❌ Модель '{model_name}' не найдена.\n\n"
             f"Доступные модели: {', '.join(available_models.keys())}\n"
-            f"Пример: `/model llama3`",
+            f"Пример: `/model gemma`",
             parse_mode="Markdown"
         )
         return
     
     current_model = available_models[model_name]
+    
+    # Отправляем описание модели
+    desc = model_descriptions.get(model_name, "🔧 Бесплатная модель")
+    
     await message.answer(
         f"✅ Модель изменена на: `{model_name}`\n\n"
+        f"{desc}\n\n"
         f"🔧 ID модели: `{current_model}`\n\n"
-        f"💡 Теперь я буду отвечать используя новую модель!",
+        f"💰 **Эта модель полностью бесплатна!**",
         parse_mode="Markdown"
     )
 
@@ -343,7 +363,7 @@ async def ask_ai(message: types.Message):
     if len(user_memory[user_id]) > MAX_MEMORY:
         user_memory[user_id] = user_memory[user_id][-MAX_MEMORY:]
     
-    # Проверяем напоминания (упрощенно)
+    # Проверяем напоминания
     if user_id in reminders:
         now = datetime.now()
         due_reminders = [r for r in reminders[user_id] if r["time"] <= now]
@@ -389,7 +409,7 @@ async def ask_ai(message: types.Message):
 
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("🤖 Бот с расширенными командами запущен!")
+    logger.info("🤖 Бот с бесплатными моделями запущен!")
     logger.info(f"Текущая модель: {current_model}")
     logger.info("Доступные команды: /start, /clear, /help, /weather, /translate, /remind, /reminders, /model")
     await dp.start_polling(bot)
