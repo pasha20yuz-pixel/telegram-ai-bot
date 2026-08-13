@@ -1,95 +1,123 @@
-# Telegram LLM Bot
+# Telegram LLM Assistant 🤖
 
-Этот проект представляет собой Telegram-бота, интегрированного с LLM (Large Language Model) через OpenRouter API. Бот позволяет пользователям общаться с LLM через Telegram, получая ответы на их запросы.
+A Telegram bot that provides access to Large Language Models through the OpenRouter API.
 
-## Особенности
+The project combines an asynchronous Telegram interface with external APIs and utility features such as weather, translation and reminders.
 
-*   **Интеграция с LLM:** Использует OpenAI клиент (через OpenRouter) для взаимодействия с различными LLM.
-*   **Контекст диалога:** Поддерживает контекст диалога для более релевантных ответов.
-*   **Асинхронность:**  Использует библиотеку `aiogram` для асинхронной обработки запросов.
-*   **Контейнеризация Docker:**  Легко развертывается и запускается с помощью Docker.
-*   **Управление конфигурацией:** Использует переменные окружения для хранения секретных ключей и настроек.
-*   **Автоматическое форматирование кода:** Настроен pre-commit для автоматической проверки и форматирования кода.
+## Features
 
-## Предварительные требования
+- 💬 Chat with LLMs through Telegram
+- 🧠 Conversation context and user memory
+- 🔄 Switch between available LLM models
+- 🌤️ Weather information
+- 🌍 Text translation
+- ⏰ Personal reminders
+- ❤️ Health check endpoint
+- 🐳 Docker support
+- 🔐 Configuration through environment variables
+- 🧹 Automated code formatting and linting with pre-commit
 
-*   Python 3.11+
-*   Docker
-*   Аккаунт Telegram Bot
-*   Аккаунт OpenRouter (или аналогичный сервис LLM)
+## Tech Stack
 
-## Настройка
+- **Python 3.11+**
+- **aiogram** — Telegram Bot API
+- **OpenAI SDK** — communication with OpenRouter
+- **aiohttp** — asynchronous HTTP requests
+- **Flask** — health check endpoint
+- **Docker** — containerization
+- **pre-commit** — code quality automation
 
-1.  **Клонируйте репозиторий:**
+## Architecture
 
-    ```bash
-    git clone <your_repository_url>
-    cd telegram-llm-bot
-    ```
+The application consists of two main components:
 
-2.  **Создайте файл `.env`:**
+- Telegram bot — handles user commands and conversations
+- HTTP health endpoint — allows the deployment platform to monitor application availability
 
-    Скопируйте файл `.env.example` и переименуйте его в `.env`. Заполните значениями ваших токенов и API-ключа:
+External services:
 
-    ```
-    TELEGRAM_BOT_TOKEN=<Your_Telegram_Bot_Token>
-    OPENROUTER_API_KEY=<Your_OpenRouter_API_Key>
-    ```
+```text
+Telegram
+   ↓
+Telegram Bot
+   ↓
+Python / aiogram
+   ↓
+OpenRouter API
+   ↓
+Large Language Model
+```
 
-    *   `TELEGRAM_BOT_TOKEN`:  Получите токен от BotFather в Telegram.
-    *   `OPENROUTER_API_KEY`: Получите API-ключ на платформе OpenRouter.
+## Additional integrations:
 
-## Запуск бота
+## Telegram Bot
+```text
+ ├── OpenRouter
+ ├── OpenWeather
+ └── LibreTranslate
+```
+# Setup
+## 1. Clone the repository
+```bash
+git clone https://github.com/pasha20yuz-pixel/telegram-ai-bot.git
+cd telegram-ai-bot
+```
+## 2. Create environment variables
 
-1.  **Соберите Docker-образ:**
+Copy .env.example to .env:
+```bash
+cp .env.example .env
+```
+Then add your API keys:
+```text
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENWEATHER_API_KEY=your_openweather_api_key
+```
+## 3. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+## 4. Run the application
+```bash
+python app.py
+```
+## Docker
 
-    ```bash
-    docker build -t telegram-llm-bot .
-    ```
+Build the image:
+```bash
+docker build -t telegram-llm-bot .
+```
+Run the container:
+```bash
+docker run -d \
+  --name telegram-llm-bot \
+  --env-file .env \
+  telegram-llm-bot
+```
+## Code Quality
 
-2.  **Запустите Docker-контейнер:**
+The project uses pre-commit to automate code quality checks.
 
-    ```bash
-    docker run -d --name llm-tg-bot --env-file ./.env  telegram-llm-bot
-    ```
+Install it with:
+```bash
+pip install pre-commit
+pre-commit install
+```
+## Project Goals
 
-    *   `-d`: Запускает контейнер в фоновом режиме.
-    *   `--name llm-tg-bot`:  Задает имя контейнера.
-    *   `--env-file ./.env`:  Передает переменные окружения из файла `.env` в контейнер.
-    *   `telegram-llm-bot`:  Имя созданного Docker-образа.
+This project was created as a practical Python project for working with:
 
-3.  **Проверка работы:**
-
-    *   Откройте Telegram и найдите своего бота по имени, указанному при создании бота (BotFather).
-    *   Отправьте команду `/start`, чтобы убедиться, что бот отвечает.
-    *   Отправьте боту текстовое сообщение, чтобы протестировать интеграцию с LLM.
-
-## Pre-commit
-
-Этот проект использует pre-commit для автоматической проверки и форматирования кода перед каждым коммитом.
-
-1.  **Установите pre-commit:**
-
-    ```bash
-    pip install pre-commit
-    ```
-
-2.  **Установите pre-commit в репозиторий:**
-
-    ```bash
-    pre-commit install
-    ```
-
-3.  Pre-commit будет запускаться автоматически перед каждым коммитом.  Если какие-либо проверки не пройдут, вам потребуется исправить ошибки, добавить измененные файлы в индекс Git (`git add`) и повторить коммит.
-
-## Конфигурация
-
-Основные настройки бота (токены, API-ключи) хранятся в переменных окружения, которые задаются в файле `.env`.  Модель LLM, используемая ботом, задается в файле `main.py`.  Вы можете изменить ее, отредактировав значение переменной `model` в функции `get_llm_response`.  Проверьте доступные модели на платформе OpenRouter.
-
-## Зависимости
-
-Зависимости проекта указаны в файле `requirements.txt`.
-
-*   `aiogram`:  Для создания Telegram-бота.
-*   `openai`: Для взаимодействия с OpenAI API (через OpenRouter).
-*   `python-dotenv`:  Для загрузки переменных окружения из файла `.env`.
+- asynchronous programming;
+- external APIs;
+- LLM integrations;
+- environment configuration;
+- Docker;
+- code quality tools.
+## Future Improvements
+- Persistent database for user data
+- Better separation of application modules
+- Automated tests
+- CI/CD pipeline
+- Improved error handling
+- Structured logging
